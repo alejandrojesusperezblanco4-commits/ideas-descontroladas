@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { cosine } from "@/lib/graph";
-import { getEmbedding } from "@/lib/server/embeddings";
 
 export const maxDuration = 60;
 
@@ -77,13 +75,10 @@ export async function POST(req: NextRequest) {
   }
 
   // ---- 1. RETRIEVAL ----
-  const qEmbedding = await getEmbedding(question);
+  // Embeddings desactivados (sin clave OpenAI) — solo scoring léxico
   const scored = ideas
     .map((idea) => {
-      const semantic =
-        qEmbedding && idea.embedding ? cosine(qEmbedding, idea.embedding) : 0;
-      // el coseno (cuando existe) domina; lo léxico cubre ideas sin embedding
-      return { idea, score: semantic * 1.0 + lexicalScore(question, idea) * 0.6 };
+      return { idea, score: lexicalScore(question, idea) };
     })
     .sort((a, b) => b.score - a.score)
     .slice(0, TOP_K);
@@ -116,8 +111,8 @@ export async function POST(req: NextRequest) {
   ];
 
   const response = await client.messages.parse({
-    model: "claude-opus-4-8",
-    max_tokens: 2048,
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 1024,
     output_config: {
       effort: "low",
       format: zodOutputFormat(AnswerSchema),
