@@ -45,7 +45,8 @@ export default function ChatBrain({ ideas, clusters, messages, setMessages, onSe
     setMessages(nextMessages);
     setLoading(true);
     try {
-      const res = await fetch("/api/chat", {
+      // Intenta Foundry IQ (Azure AI Foundry) primero, fallback a /api/chat
+      let res = await fetch("/api/foundry-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -63,6 +64,22 @@ export default function ChatBrain({ ideas, clusters, messages, setMessages, onSe
           })),
         }),
       });
+      if (!res.ok) {
+        // Fallback a Claude Haiku si Foundry no está disponible
+        res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            question: trimmed,
+            history: messages.map(({ role, content }) => ({ role, content })),
+            ideas: ideas.map((i) => ({
+              id: i.id, title: i.title, summary: i.summary,
+              tags: i.tags, viability: i.viability,
+              complexity: i.complexity, research: i.research,
+            })),
+          }),
+        });
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al consultar el cerebro");
       setMessages([
