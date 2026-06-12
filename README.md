@@ -1,8 +1,54 @@
 # ID: Ideas Descontroladas
 
-**Hackathon: Agents League — Innovation Studio · Deadline 14 jun 2026**
+> **Speak your chaotic ideas. Watch them become a living graph. Ask questions about your own thinking.**
 
-Un sistema de inteligencia colectiva para capturar, conectar y explorar ideas usando IA. Habla con tu segundo cerebro por voz o texto, y deja que encuentre convergencias entre tus ideas que tú no veías.
+**Hackathon: Agents League — Innovation Studio · 14 jun 2026**
+
+---
+
+## El problema
+
+Tienes 47 notas en el móvil, 12 en Notion, 8 en papel. Ninguna conectada entre sí. Cada idea vive en un silo, muere sola, y nunca sabes que tu idea de enero ya resolvía el problema de hoy.
+
+**ID** es el único sistema donde hablas una idea y se convierte en un nodo vivo dentro de un grafo semántico que puedes interrogar.
+
+---
+
+## Qué nos hace diferentes
+
+La mayoría de apps de "second brain" organizan tus notas en listas o resúmenes. **Nosotros las conectamos.**
+
+| Otras apps | ID: Ideas Descontroladas |
+|---|---|
+| Voz → texto plano | Voz → nodo en el grafo semántico |
+| Organiza y resume | Conecta y revela convergencias |
+| Buscas notas viejas | Le preguntas a tu propio historial de ideas |
+| El grafo es decoración | El grafo es el producto |
+
+El grafo relacional entre ideas — con clusters, conexiones semánticas y evolución temporal — es el núcleo del producto, no un feature adicional.
+
+---
+
+## Demo (3 min)
+
+```
+00:00 — El problema: ideas caóticas y desconectadas
+00:30 — Hablas una idea (voz) → nodo aparece en el grafo
+01:00 — El grafo se actualiza: conexiones con ideas existentes
+01:30 — Cerebro: "¿cuál de mis ideas del mes pasado conecta con esto?"
+02:00 — Azure AI Foundry responde citando ideas específicas del grafo
+02:15 — Microsoft Learn enrichment: recursos técnicos relacionados
+02:30 — Embudo: filtra el grafo por viabilidad y complejidad
+```
+
+---
+
+## Pantallas
+
+- **Poligrama** — grafo interactivo de convergencias entre ideas (D3.js, nodos coloreados por cluster)
+- **Ideas** — captura rápida con tags, viabilidad, complejidad y estado
+- **Cerebro** — chat con Azure AI Foundry que razona sobre TU grafo personal; voz integrada (Groq Whisper)
+- **Embudo** — pipeline de validación: filtra qué ideas merecen tiempo y recursos
 
 ---
 
@@ -18,32 +64,31 @@ Un sistema de inteligencia colectiva para capturar, conectar y explorar ideas us
         │              │                  │
    ┌────▼────┐   ┌─────▼──────┐   ┌──────▼─────┐
    │ Poligrama│   │  Cerebro   │   │   Embudo   │
-   │  (grafo) │   │  (chat IA) │   │(convergenc)│
+   │  (grafo) │   │  (chat IA) │   │(validación)│
    └──────────┘   └─────┬──────┘   └────────────┘
                         │
           ┌─────────────┼──────────────────┐
           │             │                  │
    ┌──────▼──────┐  ┌───▼────────────┐  ┌─▼──────────────┐
-   │  /api/voice  │  │ Azure AI Foundry│  │  Microsoft     │
-   │  Groq Whisper│  │ gpt-4.1-mini   │  │  Learn API     │
-   │  (STT)      │  │ (Foundry IQ ✓) │  │  (enrichment)  │
+   │  Groq Whisper│  │ Azure AI Foundry│  │  Microsoft     │
+   │   (voz→texto)│  │ gpt-4.1-mini   │  │  Learn API     │
    └─────────────┘  └───────┬────────┘  └────────────────┘
                             │
                     ┌───────▼───────┐
                     │  Neon Postgres │
-                    │  (ideas/users) │
+                    │  ideas · users │
                     └───────────────┘
 ```
 
 ### Microsoft IQ Layer — Azure AI Foundry
 
-El Cerebro usa **Azure AI Foundry** (recurso `ideas-hackathon-ai`, modelo `gpt-4.1-mini`) como capa de generación principal. En cada consulta:
+En cada consulta del Cerebro, el agente ejecuta tres pasos:
 
-1. **Retrieval léxico** — recupera las top-6 ideas más relevantes del corpus personal del usuario
-2. **Augment con Microsoft Learn** — busca recursos de documentación técnica relacionados con la pregunta en `learn.microsoft.com/api/search`
-3. **Generate** — Azure AI Foundry sintetiza la respuesta citando las ideas originales y los recursos de Microsoft Learn
+1. **Retrieval** — recupera las top-6 ideas más relevantes del grafo personal del usuario (scoring léxico + semántico)
+2. **Augment** — busca recursos técnicos relacionados en `learn.microsoft.com/api/search` (Microsoft Learn MCP)
+3. **Generate** — Azure AI Foundry (`gpt-4.1-mini`, eastus) sintetiza la respuesta citando nodos del grafo y recursos de Microsoft Learn
 
-Si Azure no está disponible, el sistema cae automáticamente a Claude Haiku (Anthropic) sin interrupción para el usuario.
+Si Azure no responde, el sistema cae automáticamente a Claude Haiku sin interrupción.
 
 ---
 
@@ -51,11 +96,11 @@ Si Azure no está disponible, el sistema cae automáticamente a Claude Haiku (An
 
 | Capa | Tecnología |
 |---|---|
-| Frontend | Next.js 16, Tailwind CSS, React |
+| Frontend | Next.js 16, Tailwind CSS, D3.js |
 | Auth | Better Auth v1.6 + Drizzle ORM |
-| Base de datos | Neon Postgres (serverless) |
-| Cerebro (principal) | **Azure AI Foundry** — `gpt-4.1-mini` |
-| Cerebro (fallback) | Claude Haiku (Anthropic) |
+| Base de datos | Neon Postgres (serverless, per-user) |
+| Cerebro — principal | **Azure AI Foundry** — `gpt-4.1-mini` (eastus) |
+| Cerebro — fallback | Claude Haiku (Anthropic) |
 | Voz (STT) | Groq Whisper |
 | Enrichment | Microsoft Learn Search API |
 | Deploy | Vercel |
@@ -68,58 +113,32 @@ Si Azure no está disponible, el sistema cae automáticamente a Claude Haiku (An
 git clone <repo>
 cd ideas-descontroladas
 npm install
-
-# Copia las credenciales
-cp .env.example .env.local
-# Edita .env.local con tus claves (ver sección de variables)
-
-# Migrar la base de datos
-npx drizzle-kit push
-
-# Iniciar
+cp .env.example .env.local   # rellena las claves
+npx drizzle-kit push          # migra la DB
 npm run dev
 ```
 
 Abre [http://localhost:3000](http://localhost:3000).
 
-### Variables de entorno requeridas
+### Variables de entorno
 
 | Variable | Descripción |
 |---|---|
-| `AZURE_AI_PROJECT_ENDPOINT` | Endpoint de tu recurso Azure AIServices |
-| `AZURE_AI_API_KEY` | API key de Azure AI Foundry |
-| `AZURE_AI_DEPLOYMENT` | Nombre del deployment (ej: `gpt-4.1-mini`) |
+| `AZURE_AI_PROJECT_ENDPOINT` | Endpoint Azure AIServices |
+| `AZURE_AI_API_KEY` | API key Azure AI Foundry |
+| `AZURE_AI_DEPLOYMENT` | Nombre del deployment (`gpt-4.1-mini`) |
 | `ANTHROPIC_API_KEY` | Fallback — Claude Haiku |
-| `GROQ_API_KEY` | Para transcripción de voz (Whisper) |
-| `DATABASE_URL` | Conexión a Neon Postgres |
-| `BETTER_AUTH_SECRET` | Secreto para Better Auth (≥32 chars) |
+| `GROQ_API_KEY` | Transcripción de voz (Whisper) |
+| `DATABASE_URL` | Neon Postgres connection string |
+| `BETTER_AUTH_SECRET` | Secreto Better Auth (≥ 32 chars) |
 | `NEXT_PUBLIC_APP_URL` | URL pública de la app |
 
 ---
 
-## Pantallas
+## Agents League — Requisitos cumplidos
 
-- **Poligrama** — grafo de convergencias entre ideas (D3.js)
-- **Ideas** — lista/kanban de todas tus ideas con metadatos
-- **Cerebro** — chat con tu segundo cerebro, voz integrada
-- **Embudo** — pipeline de validación por viabilidad y complejidad
-
----
-
-## Demo
-
-1. Crea una cuenta en `/register`
-2. Añade 3-5 ideas en la pantalla Ideas
-3. Ve al Cerebro y pregunta: *"¿En qué convergen mis ideas?"*
-4. El sistema recupera las ideas relevantes, las enriquece con recursos de Microsoft Learn, y responde con Azure AI Foundry
-5. Haz clic en cualquier chip de idea citada para verla en el Poligrama
-
----
-
-## Agentes League — Requisitos cumplidos
-
-- ✅ **Microsoft IQ Layer**: Azure AI Foundry (`gpt-4.1-mini`, eastus)
-- ✅ **Voz**: Groq Whisper STT integrado en el chat
-- ✅ **Agente con herramientas**: búsqueda Microsoft Learn como enrichment automático
-- ✅ **Per-user DB**: cada usuario tiene su propio espacio de ideas en Neon Postgres
-- ✅ **Deploy en Vercel**: [ideas-descontroladas.vercel.app](https://ideas-descontroladas.vercel.app)
+- ✅ **Microsoft IQ Layer**: Azure AI Foundry (`gpt-4.1-mini`, eastus) como motor principal del Cerebro
+- ✅ **Voz**: Groq Whisper STT — input de voz directo al grafo de ideas
+- ✅ **Agente con herramientas**: Microsoft Learn Search API como enrichment automático en cada consulta
+- ✅ **Per-user DB**: cada usuario tiene su propio grafo de ideas aislado en Neon Postgres
+- ✅ **Deploy**: [ideas-descontroladas.vercel.app](https://ideas-descontroladas.vercel.app)
