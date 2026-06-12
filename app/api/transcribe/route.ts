@@ -4,10 +4,10 @@ export const maxDuration = 60;
 
 // Anthropic no ofrece transcripción; usamos Whisper de OpenAI.
 export async function POST(req: NextRequest) {
-  const key = process.env.OPENAI_API_KEY;
+  const key = process.env.GROQ_API_KEY;
   if (!key) {
     return NextResponse.json(
-      { error: "Falta OPENAI_API_KEY en .env.local (necesaria para Whisper)" },
+      { error: "Falta GROQ_API_KEY en .env.local (necesaria para Whisper)" },
       { status: 500 }
     );
   }
@@ -20,10 +20,10 @@ export async function POST(req: NextRequest) {
 
   const form = new FormData();
   form.append("file", audio, "idea.webm");
-  form.append("model", "whisper-1");
+  form.append("model", "whisper-large-v3-turbo");
   form.append("language", "es");
 
-  const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+  const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}` },
     body: form,
