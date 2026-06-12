@@ -1,26 +1,108 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #04060d;
+  --foreground: #e1e2ee;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-space-grotesk);
+  --font-mono: var(--font-space-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), Inter, sans-serif;
+}
+
+/* Rejilla técnica de fondo, estilo HUD */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.045) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+
+/* Panel de cristal con borde superior más luminoso (luz cenital) */
+.glass {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-top-color: rgba(0, 242, 255, 0.18);
+}
+
+.glow-cyan {
+  box-shadow: 0 0 15px rgba(0, 242, 255, 0.35);
+}
+
+.glow-violet {
+  box-shadow: 0 0 15px rgba(139, 92, 246, 0.35);
+}
+
+.font-display {
+  font-family: var(--font-space-grotesk), "Space Grotesk", sans-serif;
+}
+
+.font-techno {
+  font-family: var(--font-space-mono), "Space Mono", monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* ---- Vida: fondo con glows que derivan lentamente ---- */
+@keyframes drift-a {
+  0%, 100% { transform: translate(-12%, -12%) scale(1); }
+  50% { transform: translate(14%, 10%) scale(1.25); }
+}
+@keyframes drift-b {
+  0%, 100% { transform: translate(10%, 12%) scale(1.15); }
+  50% { transform: translate(-12%, -8%) scale(0.95); }
+}
+.bg-blob {
+  position: absolute;
+  width: 55vw;
+  height: 55vw;
+  border-radius: 9999px;
+  filter: blur(120px);
+  opacity: 0.12;
+  will-change: transform;
+}
+.bg-blob-cyan {
+  background: #00f2ff;
+  top: -22%;
+  left: -12%;
+  animation: drift-a 24s ease-in-out infinite;
+}
+.bg-blob-violet {
+  background: #8b5cf6;
+  bottom: -28%;
+  right: -12%;
+  animation: drift-b 30s ease-in-out infinite;
+}
+
+/* ---- Vida: entradas animadas ---- */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+.anim-fade-up {
+  animation: fade-up 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(18px); }
+  to { opacity: 1; transform: none; }
+}
+.anim-slide-in {
+  animation: slide-in-right 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+.anim-slide-up {
+  animation: slide-up 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
