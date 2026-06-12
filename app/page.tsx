@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import CaptureBar from "@/components/CaptureBar";
 import ChatBrain, { ChatMessage } from "@/components/ChatBrain";
 import Funnel from "@/components/Funnel";
 import IdeaGraph, { NodePulse } from "@/components/IdeaGraph";
 import IdeaList from "@/components/IdeaList";
 import IdeaPanel from "@/components/IdeaPanel";
-import { SEED_IDEAS } from "@/lib/seed";
 import {
   Cluster,
   DEFAULT_CRITERIA,
@@ -16,9 +15,7 @@ import {
   IdeaSource,
   SEED_CLUSTERS,
 } from "@/lib/types";
-
-const IDEAS_KEY = "id-ideas-v1";
-const CLUSTERS_KEY = "id-clusters-v1";
+import { signOut, useSession } from "@/lib/auth-client";
 
 type Tab = "grafo" | "ideas" | "cerebro" | "embudo";
 
@@ -30,7 +27,8 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export default function Home() {
-  const [ideas, setIdeas] = useState<Idea[]>(SEED_IDEAS);
+  const { data: session } = useSession();
+  const [ideas, setIdeas] = useState<Idea[]>([]);
   const [clusters, setClusters] = useState<Record<string, Cluster>>(SEED_CLUSTERS);
   const [tab, setTab] = useState<Tab>("grafo");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -42,37 +40,49 @@ export default function Home() {
 
   const selected = ideas.find((i) => i.id === selectedId) ?? null;
 
+  // Carga inicial desde la DB
   useEffect(() => {
-    try {
-      const rawIdeas = localStorage.getItem(IDEAS_KEY);
-      if (rawIdeas) setIdeas(JSON.parse(rawIdeas));
-      const rawClusters = localStorage.getItem(CLUSTERS_KEY);
-      if (rawClusters) setClusters({ ...SEED_CLUSTERS, ...JSON.parse(rawClusters) });
-    } catch {
-      // datos corruptos en localStorage: seguimos con el seed
-    }
-    setLoaded(true);
-  }, []);
+    if (!session?.user) return;
+    fetch("/api/ideas")
+      .then((r) => r.json())
+      .then(({ ideas: dbIdeas, clusters: dbClusters }) => {
+        if (dbIdeas?.length) {
+          setIdeas(
+            dbIdeas.map((i: Record<string, unknown>) => ({
+              id: i.id,
+              title: i.title,
+              summary: i.summary,
+              tags: i.tags ?? [],
+              clusterId: i.clusterId ?? i.cluster_id ?? "inbox",
+              createdAt: i.createdAt ?? i.created_at ?? new Date().toISOString(),
+              source: (i.source as IdeaSource) ?? "texto",
+              status: (i.status as Idea["status"]) ?? "lista",
+              viability: i.viability as number | undefined,
+              complexity: i.complexity as Idea["complexity"],
+              research: i.research as string | undefined,
+            }))
+          );
+        }
+        if (dbClusters?.length) {
+          const clusterMap: Record<string, Cluster> = { ...SEED_CLUSTERS };
+          for (const c of dbClusters) {
+            clusterMap[c.id] = { name: c.name, color: c.color };
+          }
+          setClusters(clusterMap);
+        }
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+  }, [session?.user]);
 
-  useEffect(() => {
-    if (!loaded) return;
-    localStorage.setItem(IDEAS_KEY, JSON.stringify(ideas));
-    localStorage.setItem(CLUSTERS_KEY, JSON.stringify(clusters));
-  }, [ideas, clusters, loaded]);
-
-  function resetDemo() {
-    if (!confirm("¿Restaurar la demo? Se borran las ideas capturadas.")) return;
-    localStorage.removeItem(IDEAS_KEY);
-    localStorage.removeItem(CLUSTERS_KEY);
-    setIdeas(SEED_IDEAS);
-    setClusters(SEED_CLUSTERS);
-    setFunnelResult(null);
-    setSelectedId(null);
-  }
-
-  function updateIdea(id: string, patch: Partial<Idea>) {
+  const updateIdea = useCallback((id: string, patch: Partial<Idea>) => {
     setIdeas((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
-  }
+    fetch(`/api/ideas/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    }).catch(console.error);
+  }, []);
 
   async function captureIdea(text: string, source: IdeaSource) {
     const id = `idea-${Date.now()}`;
@@ -90,6 +100,13 @@ export default function Home() {
     setSelectedId(id);
     setPulse({ id, at: Date.now() });
     setTab("grafo");
+
+    // Guarda en DB inmediatamente (sin esperar enriquecimiento)
+    await fetch("/api/ideas", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(idea),
+    }).catch(console.error);
 
     try {
       const existingTags = [...new Set(ideas.flatMap((i) => i.tags))];
@@ -109,10 +126,14 @@ export default function Home() {
       if (clusterId === "nuevo" || !clusters[clusterId]) {
         if (data.newCluster?.name) {
           clusterId = `c-${Date.now()}`;
-          setClusters((prev) => ({
-            ...prev,
-            [clusterId]: { name: data.newCluster.name, color: data.newCluster.color ?? "#34d399" },
-          }));
+          const newCluster = { name: data.newCluster.name, color: data.newCluster.color ?? "#34d399" };
+          setClusters((prev) => ({ ...prev, [clusterId]: newCluster }));
+          // Persistir cluster nuevo
+          await fetch("/api/clusters", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: clusterId, ...newCluster }),
+          }).catch(console.error);
         } else {
           clusterId = "inbox";
         }
@@ -128,10 +149,8 @@ export default function Home() {
         complexity: data.complexity ?? undefined,
         status: "lista",
       });
-      // onda expansiva al conectarse al cluster — el momento del demo
       setPulse({ id, at: Date.now() });
     } catch (err) {
-      // la idea queda capturada en inbox aunque falle el enriquecimiento
       updateIdea(id, { status: "lista" });
       console.error(err);
     }
@@ -187,58 +206,41 @@ export default function Home() {
                 </button>
               ))}
             </nav>
-            <button
-              onClick={resetDemo}
-              title="Restaurar las ideas de demo"
-              className="rounded-full border border-slate-800 p-2 text-slate-600 transition hover:border-slate-600 hover:text-slate-300"
-              aria-label="Reset demo"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
-                <path d="M3 12a9 9 0 1 0 2.6-6.3" />
-                <path d="M3 4v5h5" />
-              </svg>
-            </button>
+            {session?.user && (
+              <button
+                onClick={() => signOut()}
+                title={`Salir (${session.user.email})`}
+                className="rounded-full border border-slate-800 px-3 py-1.5 text-[11px] text-slate-500 transition hover:border-slate-600 hover:text-slate-300"
+              >
+                {session.user.name?.split(" ")[0] ?? "Salir"}
+              </button>
+            )}
           </div>
         </div>
       </header>
 
       <main className="relative z-10 mx-auto flex w-full max-w-6xl min-h-0 flex-1 flex-col gap-4 px-5 py-4 sm:px-8">
-        <CaptureBar onCapture={captureIdea} />
+        {!loaded ? (
+          <div className="flex flex-1 items-center justify-center">
+            <span className="font-techno animate-pulse text-sm text-slate-500">Cargando ideas…</span>
+          </div>
+        ) : (
+          <>
+            <CaptureBar onCapture={captureIdea} />
 
-        {tab === "grafo" && (
-          <div className="anim-fade-up flex min-h-0 flex-1 gap-4">
-            <div className="min-h-0 min-w-0 flex-1">
-              <IdeaGraph
-                ideas={ideas}
-                clusters={clusters}
-                selectedId={selectedId}
-                pulse={pulse}
-                onSelect={(idea) => setSelectedId(idea?.id ?? null)}
-              />
-            </div>
-            {selected && (
-              <div key={selected.id} className="anim-slide-in hidden w-80 shrink-0 md:block">
-                <IdeaPanel
-                  idea={selected}
-                  clusters={clusters}
-                  onClose={() => setSelectedId(null)}
-                  onResearch={researchIdea}
-                />
-              </div>
-            )}
-            {/* móvil: bottom sheet en vez de panel lateral */}
-            {selected && (
-              <div className="md:hidden">
-                <div
-                  className="fixed inset-0 z-20 bg-black/60 backdrop-blur-sm"
-                  onClick={() => setSelectedId(null)}
-                />
-                <div
-                  key={selected.id}
-                  className="anim-slide-up fixed inset-x-0 bottom-0 z-30 max-h-[72dvh] overflow-hidden rounded-t-3xl"
-                >
-                  <div className="mx-auto h-full max-h-[72dvh] overflow-y-auto bg-[#0b0e16]/95 px-1 pt-2 backdrop-blur-2xl">
-                    <div className="mx-auto mb-1 h-1 w-10 rounded-full bg-slate-700" />
+            {tab === "grafo" && (
+              <div className="anim-fade-up flex min-h-0 flex-1 gap-4">
+                <div className="min-h-0 min-w-0 flex-1">
+                  <IdeaGraph
+                    ideas={ideas}
+                    clusters={clusters}
+                    selectedId={selectedId}
+                    pulse={pulse}
+                    onSelect={(idea) => setSelectedId(idea?.id ?? null)}
+                  />
+                </div>
+                {selected && (
+                  <div key={selected.id} className="anim-slide-in hidden w-80 shrink-0 md:block">
                     <IdeaPanel
                       idea={selected}
                       clusters={clusters}
@@ -246,51 +248,73 @@ export default function Home() {
                       onResearch={researchIdea}
                     />
                   </div>
-                </div>
+                )}
+                {selected && (
+                  <div className="md:hidden">
+                    <div
+                      className="fixed inset-0 z-20 bg-black/60 backdrop-blur-sm"
+                      onClick={() => setSelectedId(null)}
+                    />
+                    <div
+                      key={selected.id}
+                      className="anim-slide-up fixed inset-x-0 bottom-0 z-30 max-h-[72dvh] overflow-hidden rounded-t-3xl"
+                    >
+                      <div className="mx-auto h-full max-h-[72dvh] overflow-y-auto bg-[#0b0e16]/95 px-1 pt-2 backdrop-blur-2xl">
+                        <div className="mx-auto mb-1 h-1 w-10 rounded-full bg-slate-700" />
+                        <IdeaPanel
+                          idea={selected}
+                          clusters={clusters}
+                          onClose={() => setSelectedId(null)}
+                          onResearch={researchIdea}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
-          </div>
-        )}
 
-        {tab === "ideas" && (
-          <div className="anim-fade-up min-h-0 flex-1 overflow-y-auto pb-4">
-            <IdeaList
-              ideas={ideas}
-              clusters={clusters}
-              onSelect={(idea) => {
-                setSelectedId(idea.id);
-                setTab("grafo");
-              }}
-            />
-          </div>
-        )}
+            {tab === "ideas" && (
+              <div className="anim-fade-up min-h-0 flex-1 overflow-y-auto pb-4">
+                <IdeaList
+                  ideas={ideas}
+                  clusters={clusters}
+                  onSelect={(idea) => {
+                    setSelectedId(idea.id);
+                    setTab("grafo");
+                  }}
+                />
+              </div>
+            )}
 
-        {tab === "cerebro" && (
-          <ChatBrain
-            ideas={ideas.filter((i) => i.status !== "enriqueciendo")}
-            clusters={clusters}
-            messages={chatMessages}
-            setMessages={setChatMessages}
-            onSelectIdea={(id) => {
-              setSelectedId(id);
-              setTab("grafo");
-            }}
-          />
-        )}
+            {tab === "cerebro" && (
+              <ChatBrain
+                ideas={ideas.filter((i) => i.status !== "enriqueciendo")}
+                clusters={clusters}
+                messages={chatMessages}
+                setMessages={setChatMessages}
+                onSelectIdea={(id) => {
+                  setSelectedId(id);
+                  setTab("grafo");
+                }}
+              />
+            )}
 
-        {tab === "embudo" && (
-          <Funnel
-            ideas={ideas.filter((i) => i.status !== "enriqueciendo")}
-            clusters={clusters}
-            criteria={criteria}
-            setCriteria={setCriteria}
-            result={funnelResult}
-            setResult={setFunnelResult}
-            onSelectIdea={(id) => {
-              setSelectedId(id);
-              setTab("grafo");
-            }}
-          />
+            {tab === "embudo" && (
+              <Funnel
+                ideas={ideas.filter((i) => i.status !== "enriqueciendo")}
+                clusters={clusters}
+                criteria={criteria}
+                setCriteria={setCriteria}
+                result={funnelResult}
+                setResult={setFunnelResult}
+                onSelectIdea={(id) => {
+                  setSelectedId(id);
+                  setTab("grafo");
+                }}
+              />
+            )}
+          </>
         )}
       </main>
     </div>
