@@ -173,48 +173,78 @@ export default function Home() {
         <div className="bg-blob bg-blob-cyan" />
         <div className="bg-blob bg-blob-violet" />
       </div>
-      <header className="relative z-10 border-b border-slate-800/80 bg-[#04060d]/70 px-5 py-4 backdrop-blur-xl sm:px-8">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="glow-cyan flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-cyan-400/50 bg-cyan-400/10">
-              <span className="font-display bg-gradient-to-r from-cyan-300 to-violet-400 bg-clip-text text-sm font-bold text-transparent">
-                ID
-              </span>
-            </span>
-            <div>
-              <h1 className="font-display text-base font-semibold tracking-wide">
-                ID: Ideas Descontroladas
-              </h1>
-              <p className="font-techno hidden text-[10px] text-slate-500 sm:block">
-                llegan descontroladas, salen con identidad
-              </p>
+      <header className="relative z-10 bg-[#04060d]/80 backdrop-blur-xl">
+        {/* ── Top bar ── */}
+        <div className="border-b border-slate-800/60 px-5 py-3 sm:px-8">
+          <div className="mx-auto flex max-w-6xl items-center justify-between">
+            {/* Logo */}
+            <div className="flex items-center gap-3">
+              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-cyan-400/30 bg-cyan-400/8">
+                <span className="font-display bg-gradient-to-br from-cyan-300 to-violet-400 bg-clip-text text-xs font-black text-transparent">
+                  ID
+                </span>
+                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(0,242,255,0.8)]">
+                  <span className="absolute inset-0 animate-ping rounded-full bg-cyan-400 opacity-60" />
+                </span>
+              </div>
+              <div>
+                <h1 className="font-display text-sm font-bold tracking-[.06em] text-slate-100">
+                  IDEAS DESCONTROLADAS
+                </h1>
+                <p className="font-techno hidden text-[9px] tracking-[.12em] text-slate-600 sm:block">
+                  LLEGAN SIN CONTROL · SALEN CON IDENTIDAD
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <nav className="glass flex gap-1 rounded-full p-1">
-              {TABS.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setTab(t.id)}
-                  className={`font-techno rounded-full px-4 py-1.5 text-[11px] transition ${
-                    tab === t.id
-                      ? "glow-cyan bg-cyan-400/90 font-bold text-slate-950"
-                      : "text-slate-400 hover:text-cyan-200"
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </nav>
+
+            {/* User */}
             {session?.user && (
               <button
                 onClick={() => signOut()}
                 title={`Salir (${session.user.email})`}
-                className="rounded-full border border-slate-800 px-3 py-1.5 text-[11px] text-slate-500 transition hover:border-slate-600 hover:text-slate-300"
+                className="font-techno flex items-center gap-2 rounded-lg border border-slate-800 px-3 py-1.5 text-[10px] uppercase tracking-wider text-slate-500 transition hover:border-slate-600 hover:text-slate-300"
               >
-                {session.user.name?.split(" ")[0] ?? "Salir"}
+                <span className="h-1.5 w-1.5 rounded-full bg-green-400 shadow-[0_0_5px_rgba(74,222,128,0.6)]" />
+                {session.user.name?.split(" ")[0] ?? "yo"}
               </button>
             )}
+          </div>
+        </div>
+
+        {/* ── Tab bar ── */}
+        <div className="border-b border-slate-800/60 px-5 sm:px-8">
+          <div className="mx-auto flex max-w-6xl">
+            {TABS.map((t) => {
+              const count =
+                t.id === "grafo" || t.id === "ideas" ? ideas.length
+                : t.id === "cerebro" ? chatMessages.length
+                : null;
+              const isActive = tab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className={`font-techno relative flex items-center gap-1.5 border-b-2 px-4 py-3 text-[11px] uppercase tracking-[.1em] transition-colors ${
+                    isActive
+                      ? "border-cyan-400 text-cyan-300"
+                      : "border-transparent text-slate-500 hover:text-slate-300"
+                  }`}
+                >
+                  {t.label}
+                  {count !== null && count > 0 && (
+                    <span
+                      className={`rounded-full px-1.5 py-px text-[9px] font-bold transition-colors ${
+                        isActive
+                          ? "bg-cyan-400/20 text-cyan-300"
+                          : "bg-slate-800 text-slate-500"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       </header>
