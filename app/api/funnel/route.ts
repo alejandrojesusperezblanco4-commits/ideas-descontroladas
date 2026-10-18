@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { guard, LIMITES } from "@/lib/server/guard";
 
 export const maxDuration = 120;
 
@@ -25,6 +26,8 @@ const FunnelSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const g = await guard("funnel", LIMITES.funnel);
+  if (g instanceof NextResponse) return g;
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
       { error: "Falta ANTHROPIC_API_KEY en .env.local" },
@@ -38,6 +41,9 @@ export async function POST(req: NextRequest) {
   }
   if (!Array.isArray(criteria) || criteria.length === 0) {
     return NextResponse.json({ error: "Define al menos un criterio" }, { status: 400 });
+  }
+  if (ideas.length > 100 || criteria.length > 10 || criteria.some((c: unknown) => typeof c !== "string" || c.length > 200)) {
+    return NextResponse.json({ error: "Demasiadas ideas o criterios (máximo 100 ideas y 10 criterios de 200 caracteres)" }, { status: 400 });
   }
 
   const client = new Anthropic();

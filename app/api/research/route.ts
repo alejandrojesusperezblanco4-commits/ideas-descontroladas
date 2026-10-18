@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { guard, LIMITES } from "@/lib/server/guard";
 
 export const maxDuration = 300;
 
 // Investigación profunda con la web search server-side de Anthropic.
 export async function POST(req: NextRequest) {
+  const g = await guard("research", LIMITES.research);
+  if (g instanceof NextResponse) return g;
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
       { error: "Falta ANTHROPIC_API_KEY en .env.local" },
@@ -13,8 +16,11 @@ export async function POST(req: NextRequest) {
   }
 
   const { title, summary, tags } = await req.json();
-  if (!title) {
+  if (!title || typeof title !== "string") {
     return NextResponse.json({ error: "Falta la idea a investigar" }, { status: 400 });
+  }
+  if (title.length > 300 || (typeof summary === "string" && summary.length > 3000)) {
+    return NextResponse.json({ error: "La idea es demasiado larga para investigarla" }, { status: 400 });
   }
 
   const client = new Anthropic();

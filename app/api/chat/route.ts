@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { guard, LIMITES } from "@/lib/server/guard";
 
 export const maxDuration = 60;
 
@@ -55,6 +56,8 @@ function lexicalScore(question: string, idea: ChatIdea): number {
 }
 
 export async function POST(req: NextRequest) {
+  const g = await guard("chat", LIMITES.chat);
+  if (g instanceof NextResponse) return g;
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
       { error: "Falta ANTHROPIC_API_KEY en .env.local" },
@@ -72,6 +75,9 @@ export async function POST(req: NextRequest) {
   }
   if (!Array.isArray(ideas) || ideas.length === 0) {
     return NextResponse.json({ error: "No hay ideas en el cerebro todavía" }, { status: 400 });
+  }
+  if (question.length > 2000 || ideas.length > 300) {
+    return NextResponse.json({ error: "Pregunta o cerebro demasiado grandes" }, { status: 400 });
   }
 
   // ---- 1. RETRIEVAL ----

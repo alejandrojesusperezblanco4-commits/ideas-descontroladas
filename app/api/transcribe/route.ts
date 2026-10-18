@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guard, LIMITES } from "@/lib/server/guard";
 
 export const maxDuration = 60;
 
 // Anthropic no ofrece transcripción; usamos Whisper de OpenAI.
 export async function POST(req: NextRequest) {
+  const g = await guard("transcribe", LIMITES.transcribe);
+  if (g instanceof NextResponse) return g;
   const key = process.env.GROQ_API_KEY;
   if (!key) {
     return NextResponse.json(
@@ -16,6 +19,9 @@ export async function POST(req: NextRequest) {
   const audio = incoming.get("audio");
   if (!(audio instanceof Blob)) {
     return NextResponse.json({ error: "Falta el archivo de audio" }, { status: 400 });
+  }
+  if (audio.size > 10 * 1024 * 1024) {
+    return NextResponse.json({ error: "El audio es demasiado grande (máximo 10 MB)" }, { status: 400 });
   }
 
   const form = new FormData();

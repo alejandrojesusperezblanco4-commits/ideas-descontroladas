@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AzureOpenAI } from "openai";
+import { guard, LIMITES } from "@/lib/server/guard";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -60,6 +61,8 @@ async function searchMicrosoftLearn(query: string): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
+  const g = await guard("foundry-chat", LIMITES.chat);
+  if (g instanceof NextResponse) return g;
   const apiKey = process.env.AZURE_AI_API_KEY;
   const endpoint = (process.env.AZURE_AI_PROJECT_ENDPOINT ?? "").replace(/\/$/, "");
   const deployment = process.env.AZURE_AI_DEPLOYMENT ?? "gpt-4.1-mini";
@@ -81,6 +84,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Falta la pregunta" }, { status: 400 });
   if (!Array.isArray(ideas) || ideas.length === 0)
     return NextResponse.json({ error: "No hay ideas en el cerebro todavía" }, { status: 400 });
+  if (question.length > 2000 || ideas.length > 300)
+    return NextResponse.json({ error: "Pregunta o cerebro demasiado grandes" }, { status: 400 });
 
   // ── 1. RETRIEVAL — top-K ideas por scoring léxico ─────────────────────────
   const scored = ideas

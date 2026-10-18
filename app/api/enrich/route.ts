@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { getEmbedding } from "@/lib/server/embeddings";
+import { guard, LIMITES } from "@/lib/server/guard";
 
 export const maxDuration = 60;
 
@@ -33,6 +34,8 @@ const EnrichmentSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const g = await guard("enrich", LIMITES.enrich);
+  if (g instanceof NextResponse) return g;
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
       { error: "Falta ANTHROPIC_API_KEY en .env.local" },
@@ -43,6 +46,9 @@ export async function POST(req: NextRequest) {
   const { text, clusters, existingTags } = await req.json();
   if (!text || typeof text !== "string") {
     return NextResponse.json({ error: "Falta el texto de la idea" }, { status: 400 });
+  }
+  if (text.length > 5000) {
+    return NextResponse.json({ error: "La idea es demasiado larga (máximo 5000 caracteres)" }, { status: 400 });
   }
 
   const client = new Anthropic();
